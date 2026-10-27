@@ -26,11 +26,49 @@ from typing import Any, Optional
 
 __version__ = "0.3.1-beta"
 
-from mcp.server.fastmcp import FastMCP
+import asyncio
 
+from mcp.server.fastmcp import FastMCP
+from mcp.types import TextContent
+
+import atualizacao
 from client import get_client, list_connections, register_client
 
-mcp = FastMCP(
+
+class _GestaoContabilMCP(FastMCP):
+    """
+    FastMCP que avisa, uma vez por sessão, quando há versão nova publicada.
+
+    A verificação roda em segundo plano na primeira chamada — a resposta não
+    espera pelo GitHub — e o aviso é anexado à primeira resposta que encontrar
+    ele pronto. Assim o cliente fica sabendo sem ninguém precisar avisá-lo, que
+    era o pedido; e sem atualizar nada sozinho, que era a condição.
+    """
+
+    async def call_tool(self, name, arguments):
+        if getattr(self, "_verificacao", None) is None:
+            self._verificacao = asyncio.create_task(atualizacao.preparar_aviso(__version__))
+
+        resultado = await super().call_tool(name, arguments)
+
+        # Quem já está atualizando não precisa ser avisado de que pode atualizar.
+        if name == "gc_atualizar":
+            return resultado
+
+        aviso = atualizacao.consumir_aviso()
+        if not aviso:
+            return resultado
+
+        bloco = TextContent(type="text", text=aviso.strip())
+        # O FastMCP devolve lista de conteúdo, ou (lista, estruturado) quando a
+        # tool tem retorno tipado. Nos dois casos o aviso vai no fim do texto.
+        if isinstance(resultado, tuple):
+            conteudo, estruturado = resultado
+            return [*conteudo, bloco], estruturado
+        return [*resultado, bloco]
+
+
+mcp = _GestaoContabilMCP(
     "gestao-contabil",
     instructions="""
 Você é um assistente integrado ao Questor Gestão Contábil via API Cloud (nHttp).
@@ -343,7 +381,26 @@ async def gc_versao(conexao: str = "default") -> dict:
         "questor_versao": questor_versao,
         "base_url": client.base_url,
         "conexao": conexao,
+        "atualizacao": await atualizacao.verificar(__version__),
     }
+
+
+@mcp.tool()
+async def gc_atualizar(confirmar: bool = False) -> dict:
+    """
+    Atualiza este MCP para a última versão publicada no GitHub.
+
+    Sem confirmar, só mostra o que vai acontecer: versão atual e nova, o que
+    será preservado e onde fica o backup. Com confirmar=True, baixa e aplica.
+
+    O .env (URL, usuário e senha do nHttp) e as credenciais NÃO são tocados, e
+    a versão atual fica guardada numa pasta de backup ao lado. Depois de
+    atualizar é preciso reiniciar o Claude.
+
+    Use quando aparecer o aviso de versão nova, ou quando gc_versao indicar
+    atualizacao_disponivel=True.
+    """
+    return await atualizacao.aplicar(__version__, confirmar=confirmar)
 
 
 @mcp.tool()

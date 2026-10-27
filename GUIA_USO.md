@@ -99,6 +99,7 @@ Reinicie o Claude Desktop. O servidor MCP sera iniciado automaticamente.
 |------|-----------|
 | `gc_versao` | Testa conexao e retorna versao do Questor |
 | `gc_health` | Diz se o servidor esta respondendo e o que fazer se nao estiver |
+| `gc_atualizar` | Atualiza o MCP para a ultima versao publicada (pede confirmacao) |
 | `gc_login` | Login manual (diagnostico) |
 | `gc_logout` | Encerra sessao |
 | `gc_conexao_listar` | Lista conexoes registradas |
@@ -221,7 +222,32 @@ Os relatorios sao salvos automaticamente em `~/Downloads/gestao-contabil/` ou no
 
 ---
 
-## 9. Dicas
+## 9. Atualizacoes
+
+O MCP avisa sozinho quando sai uma versao nova. Em alguma resposta da sessao
+aparece uma linha assim:
+
+> Saiu a versao X do MCP Gestao Contabil (voce esta na Y). Para atualizar,
+> use a ferramenta `gc_atualizar`.
+
+Para atualizar, basta pedir ao Claude: *"atualiza o MCP do Gestao Contabil"*.
+
+1. Primeiro ele mostra o que vai acontecer: versao atual, versao nova e o que
+   sera preservado. Nada e alterado nessa etapa.
+2. Depois que voce confirmar, ele baixa e aplica.
+3. Reinicie o Claude para carregar a versao nova.
+
+**O que nao e tocado:** o `.env` (URL, usuario e senha do nHttp) e as
+credenciais. A versao anterior fica guardada numa pasta
+`gestao-contabil-mcp.backup-<data>` ao lado da instalacao, caso precise voltar.
+
+**O MCP nunca se atualiza sozinho** — ele so avisa. A atualizacao sempre
+depende de voce pedir. Isso evita que uma versao com problema chegue a todos
+os clientes ao mesmo tempo, sem ninguem conferir.
+
+Codigo-fonte e versoes: https://github.com/QuestorSistemas/mcp-gestao-contabil
+
+## 10. Dicas
 
 - **Login e automatico** - nunca precisa chamar `gc_login` manualmente
 - **Sempre inspecione antes de executar** - use `gc_inspecionar` para ver parametros obrigatorios
@@ -231,7 +257,7 @@ Os relatorios sao salvos automaticamente em `~/Downloads/gestao-contabil/` ou no
 
 ---
 
-## 10. Estrutura do Projeto
+## 11. Estrutura do Projeto
 
 ```
 gestao-contabil-mcp/

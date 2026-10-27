@@ -115,6 +115,7 @@ GC_ALLOW_MULTI_CONN=false
 | `gc_logout` | `POST /home/logout` | Encerra sessão |
 | `gc_cache_limpar` | — | Descarta o cache de parâmetros e relê a versão do Questor |
 | `gc_health` | `GET /api/TnWebDMDadosGerais/PegarVersaoQuestor` | Diz se o nHttp responde, sem levantar erro |
+| `gc_atualizar` | GitHub (raw + codeload) | Atualiza o próprio MCP para a última versão publicada |
 | `gc_conexao_listar` | — | Lista conexões registradas |
 | `gc_conexao_adicionar` | — | Registra conexão em runtime |
 | `gc_conexao_importar_ini` | — | Importa conexões de um Questor.Conexao.ini |
@@ -191,6 +192,29 @@ a cada request, com handshake TCP/TLS toda vez). `aclose()` fecha; `logout()` j�
 `verify` vem de `GC_VERIFY_SSL` (padrão `false`): a Cloud fica atrás de um proxy nginx com
 certificado que o httpx não valida, e o nHttp local é http puro. Ligue onde o certificado
 for válido.
+
+### Atualização (`atualizacao.py`)
+
+Decidido em 27/10/2026 com Produto e Operações: o MCP **avisa** quando há versão
+nova e **atualiza sob comando** (`gc_atualizar`). Nunca se atualiza sozinho — senão
+qualquer publicação errada chegaria a todos os clientes de imediato, sem conferência.
+
+- **Aviso:** `_GestaoContabilMCP.call_tool` dispara a verificação em segundo plano na
+  primeira chamada da sessão (a resposta não espera pelo GitHub) e anexa o aviso, **uma
+  vez**, à primeira resposta que o encontrar pronto. `gc_versao` também traz o campo
+  `atualizacao`.
+- **Fonte da versão:** o `pyproject.toml` via `raw.githubusercontent.com`, e **não** a API
+  do GitHub. A API sem autenticação permite 60 requisições/hora **por IP** — num escritório
+  atrás de NAT os clientes estourariam isso entre si. Visto na prática: o IP da Questor
+  chegou a 0 de 60. A API de tags fica só de reserva.
+- **Download:** pelo codeload (`/archive/refs/tags/<tag>.tar.gz`), também fora do limite.
+  A tag leva prefixo `v` e o pyproject não — o download tenta `v<versão>` e depois `<versão>`.
+- **Nunca sobrescreve** `.env`, `token.json`, `credentials.json` nem `.claude/`. Guarda a
+  versão anterior em `<pasta>.backup-<data>` antes de aplicar.
+- **Para publicar uma versão nova:** subir o `version` no `pyproject.toml` **e** no
+  `__version__` do `server.py`, e criar a tag `v<versão>` apontando para o commit. Sem a
+  tag, o cliente é avisado mas o download falha. ⚠️ Se `atualizacao.py` ganhar um módulo
+  novo, ele precisa entrar em `py-modules` no `pyproject.toml`.
 
 ### Fluxo típico de uso
 
