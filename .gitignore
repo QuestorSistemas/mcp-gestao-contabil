@@ -1,0 +1,4 @@
+
+# lixo de build/teste Python
+.pytest_cache/
+*.egg-info/
