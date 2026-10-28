@@ -84,19 +84,34 @@ o que vai mudar e só aplica depois que você confirmar. Em seguida, feche e abr
 
 ---
 
-## Segurança e privacidade
+## Antes de usar — leia os Termos de Uso
+
+O uso do MCP segue os **[Termos de Uso de Inteligência Artificial](TERMOS_DE_USO.md)** da
+Questor ([versão oficial no Questor Docs](https://docs.questor.com.br/pt-br/Produtos/termos-de-uso/termosdeusoia)).
+Os pontos principais para quem usa o MCP:
+
+- **O MCP altera o sistema de verdade.** As operações executadas por ele alteram
+  diretamente o Questor e o banco de dados, podendo inclusive alterar ou excluir
+  informações. **Revise cada operação antes de confirmá-la.**
+- **Tenha um backup atualizado** antes de executar qualquer procedimento.
+- **A responsabilidade é do usuário** — pela instalação, pela desinstalação e por cada
+  procedimento executado.
+- **Não inclua nas consultas** dados pessoais, dados sensíveis ou informações protegidas
+  por sigilo, conforme a LGPD (Lei nº 13.709/2018).
+- **As respostas da IA são apoio**, e não substituem a análise técnica e profissional.
+  Confira e valide as informações antes de usá-las.
+
+### Como os seus dados circulam
 
 - **O MCP roda no seu computador** e conversa direto com o seu Questor — no servidor do
   escritório ou na Questor Cloud. Não existe nenhum serviço intermediário no meio.
 - **Seu usuário e sua senha ficam só na sua máquina**, no arquivo `.env` da pasta de
   instalação. Não compartilhe esse arquivo.
-- **O que o Claude lê do Questor é enviado ao Claude** para ele poder responder, como
-  acontece com qualquer conteúdo que você mostra a ele. Vale observar as regras do seu
-  escritório sobre dados de clientes antes de pedir consultas com informação sensível.
-- **O Claude pode executar rotinas que alteram dados**, como processos e importações.
-  Antes de confirmar um pedido assim, leia o que ele diz que vai fazer. Quando o próprio
-  Questor exige confirmação numa rotina, o Claude mostra a pergunta a você antes de
-  responder.
+- **A ferramenta de IA é sua**, contratada e operada por você. O que o Claude lê do Questor
+  é enviado a ele para que possa responder, e o tratamento dessas informações segue as
+  condições do fornecedor da ferramenta.
+- **Quando o próprio Questor exige confirmação** numa rotina, o Claude mostra a pergunta a
+  você antes de responder.
 
 ---
 
@@ -122,6 +137,9 @@ Rode o `instalar.bat` de novo e informe os novos dados.
 
 ## Documentação
 
+- **[Termos de Uso](TERMOS_DE_USO.md)** — inclusive as orientações específicas para MCPs
+- **[Como instalar e configurar MCPs](https://docs.questor.com.br/pt-br/Produtos/MCPs/instalacao-mcp)** e
+  **[Como utilizar o MCP do Gestão Contábil](https://docs.questor.com.br/pt-br/Produtos/MCPs/utilizacao-mcp)** — guias oficiais no Questor Docs
 - **[Guia de uso completo](GUIA_USO.md)** — todas as ferramentas, exemplos, múltiplas
   conexões, formatos de relatório e configuração manual (Linux/macOS)
 - **[Documentação da API nHttp](docs/)** — as páginas de referência da API usada pelo MCP
