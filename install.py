@@ -3,13 +3,14 @@
 Instalador do MCP Questor Gestão Contábil.
 
 Guia completo: verifica Python, instala dependências, pede as credenciais,
-testa a conexão com o nHttp e registra o servidor no Claude.
+testa a conexão com o nHttp e registra o servidor no Claude e no OpenAI Codex.
 
 Uso: python install.py   (ou duplo-clique em instalar.bat)
 """
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -114,7 +115,7 @@ def configurar_credenciais() -> dict:
     logon = perguntar(
         "Usuario no formato usuario@conexao",
         atual.get("GC_LOGON_NAME", ""),
-        "administrador@questor",
+        "usuario.mcp@questor — nao use o Administrador",
     )
 
     senha_atual = atual.get("GC_PASSWORD", "")
@@ -149,15 +150,40 @@ def configurar_credenciais() -> dict:
         f"GC_DOWNLOAD_DIR={download_dir}\n",
         encoding="utf-8",
     )
-    # A senha fica em texto claro no .env. Restringe ao dono onde o SO respeita
-    # o modo POSIX; no Windows a chamada passa sem efeito pratico nas ACLs.
-    try:
-        os.chmod(ENV_FILE, 0o600)
-    except OSError:
-        pass
-
+    proteger_env()
     print(f"  Credenciais salvas em: {ENV_FILE}")
     return {"url": url, "logon": logon, "senha": senha}
+
+
+def proteger_env() -> None:
+    """
+    A senha fica em texto claro no .env: deixa o arquivo legível só pelo dono.
+
+    No Windows o chmod não mexe nas ACLs — o arquivo herdaria as permissões da
+    pasta, que costumam liberar leitura para outros usuários da máquina. Lá a
+    proteção é feita com icacls: corta a herança e deixa só o usuário atual.
+    """
+    if os.name != "nt":
+        try:
+            os.chmod(ENV_FILE, 0o600)
+        except OSError:
+            pass
+        return
+
+    usuario = os.environ.get("USERNAME", "")
+    dominio = os.environ.get("USERDOMAIN", "")
+    if not usuario:
+        print("  Aviso: nao deu para identificar o usuario; o .env ficou com as permissoes da pasta.")
+        return
+    conta = f"{dominio}\\{usuario}" if dominio else usuario
+    r = subprocess.run(
+        ["icacls", str(ENV_FILE), "/inheritance:r", "/grant:r", f"{conta}:F"],
+        capture_output=True, text=True,
+    )
+    if r.returncode == 0:
+        print(f"  .env protegido: so {conta} pode ler.")
+    else:
+        print(f"  Aviso: nao deu para restringir o .env ({(r.stderr or r.stdout).strip()}).")
 
 
 def testar_conexao(cfg: dict) -> bool:
@@ -173,7 +199,8 @@ def testar_conexao(cfg: dict) -> bool:
         with httpx.Client(verify=False, timeout=30.0, follow_redirects=True) as c:
             r = c.post(
                 f"{cfg['url']}/home/LoginModulo",
-                params={"LogonName": cfg["logon"], "PlainPassword": cfg["senha"]},
+                # No corpo, nunca na URL: a URL fica nos logs do servidor.
+                data={"LogonName": cfg["logon"], "PlainPassword": cfg["senha"]},
             )
             r.raise_for_status()
             token = (r.json() or {}).get("Token")
@@ -266,6 +293,71 @@ def registrar_no_claude() -> int:
     return registrados
 
 
+def caminho_config_codex() -> Path | None:
+    """config.toml do OpenAI Codex, se o Codex estiver nesta máquina."""
+    base = Path(os.environ.get("CODEX_HOME", "") or Path.home() / ".codex")
+    if base.is_dir() or shutil.which("codex"):
+        return base / "config.toml"
+    return None
+
+
+def _bloco_codex() -> str:
+    # Strings literais do TOML (aspas simples): o caminho do Windows vai sem
+    # escapar as barras invertidas.
+    return (
+        f"[mcp_servers.{MCP_NAME}]\n"
+        f"command = '{sys.executable}'\n"
+        f"args = ['{SERVER_PY}']\n"
+        # O padrão do Codex é 10 s para subir e 60 s por chamada; a primeira
+        # carga do Python e um relatório pesado passam disso.
+        "startup_timeout_sec = 30\n"
+        "tool_timeout_sec = 180\n"
+    )
+
+
+def registrar_no_codex() -> bool:
+    """
+    Registra no Codex editando o config.toml, no mesmo formato que o
+    `codex mcp add` grava. Edita direto (e não pelo CLI) para poder ajustar os
+    timeouts e para funcionar também onde só há a extensão de IDE ou o app.
+    Idempotente: troca o bloco existente e não mexe nos outros servidores.
+    """
+    caminho = caminho_config_codex()
+    if caminho is None:
+        print("  Codex nao encontrado nesta maquina — pulando.")
+        return False
+
+    texto = caminho.read_text(encoding="utf-8-sig") if caminho.exists() else ""
+    cabecalho = f"[mcp_servers.{MCP_NAME}]"
+    linhas = texto.splitlines()
+    inicio = next((i for i, l in enumerate(linhas) if l.strip() == cabecalho), None)
+
+    if inicio is None:
+        acao = "adicionado"
+        if texto and not texto.endswith("\n"):
+            texto += "\n"
+        novo = texto + ("\n" if texto.strip() else "") + _bloco_codex()
+    else:
+        acao = "atualizado"
+        # O bloco vai até a próxima tabela, inclusive subtabelas dele próprio
+        # ([mcp_servers.gestao-contabil.env]), que descartamos junto.
+        fim = next(
+            (j for j in range(inicio + 1, len(linhas))
+             if linhas[j].lstrip().startswith("[")
+             and not linhas[j].strip().startswith(f"[mcp_servers.{MCP_NAME}.")),
+            len(linhas),
+        )
+        novo = "\n".join(linhas[:inicio]) + ("\n" if inicio else "") + _bloco_codex()
+        resto = "\n".join(linhas[fim:])
+        if resto:
+            novo += "\n" + resto + "\n"
+
+    caminho.parent.mkdir(parents=True, exist_ok=True)
+    caminho.write_text(novo, encoding="utf-8")
+    print(f"  [Codex] {acao} em {caminho}")
+    return True
+
+
 # --------------------------------------------------------------------------
 
 def main() -> int:
@@ -287,17 +379,20 @@ def main() -> int:
     conectou = testar_conexao(cfg)
 
     print()
-    print("[5/5] Registrando no Claude")
+    print("[5/5] Registrando no Claude e no Codex")
     registrados = registrar_no_claude()
+    no_codex = registrar_no_codex()
 
     titulo("Instalacao concluida")
 
-    if registrados:
+    if registrados or no_codex:
         print("Proximos passos:")
-        print("  1. Feche o Claude Desktop POR COMPLETO — inclusive o icone")
-        print("     na bandeja do sistema, ao lado do relogio.")
-        print("  2. Abra o Claude novamente e inicie uma conversa nova.")
-        print('  3. Peca: "qual a versao do Questor?"')
+        if registrados:
+            print("  Claude: feche o Claude Desktop POR COMPLETO — inclusive o icone")
+            print("          na bandeja do sistema, ao lado do relogio — e abra de novo.")
+        if no_codex:
+            print("  Codex:  feche e abra o Codex. Confira com: codex mcp list")
+        print('  Depois, numa conversa nova, peca: "qual a versao do Questor?"')
         print()
         print("Se responder com a versao, esta funcionando.")
     if not conectou:

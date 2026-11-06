@@ -1,10 +1,10 @@
 # MCP Questor Gestão Contábil
 
-Conecta o **Claude** ao **Questor Gestão Contábil**: você pede em português e o Claude
-consulta cadastros, gera relatórios, executa rotinas e importa ou exporta dados direto
+Conecta o **Claude** ou o **OpenAI Codex** ao **Questor Gestão Contábil**: você pede em
+português e a IA consulta cadastros, gera relatórios, executa rotinas e importa ou exporta dados direto
 no seu sistema.
 
-> Versão atual: **0.3.2-beta** · Para Windows, com Claude Desktop ou Claude Code
+> Versão atual: **0.4.0-beta** · Para Windows, com Claude Desktop, Claude Code ou OpenAI Codex
 
 ---
 
@@ -25,6 +25,8 @@ Os relatórios e exportações são salvos na sua pasta **Downloads**, em
 O Claude descobre sozinho qual rotina usar e quais informações ela exige. Se faltar
 alguma, ele pergunta antes de executar.
 
+> Os exemplos falam do Claude, mas valem igual para o Codex: o MCP é o mesmo.
+
 ---
 
 ## Antes de instalar
@@ -34,7 +36,7 @@ Você vai precisar de:
 | | |
 |---|---|
 | **Python 3.10 ou mais novo** | [python.org/downloads](https://www.python.org/downloads/). Na instalação, marque **"Add Python to PATH"**. |
-| **Claude Desktop** ou **Claude Code** | [claude.ai/download](https://claude.ai/download) |
+| **Claude Desktop**, **Claude Code** ou **OpenAI Codex** | [claude.ai/download](https://claude.ai/download) · [Codex](https://developers.openai.com/codex) |
 | **Acesso ao Questor Gestão Contábil** | O endereço do seu nHttp, um usuário e a senha. Peça ao responsável pelo Questor no seu escritório se não souber. |
 
 O endereço costuma ser um destes:
@@ -42,7 +44,10 @@ O endereço costuma ser um destes:
 - **Questor Cloud:** `https://gc-SEUCODIGO.questor.com.br`
 - **Servidor no escritório:** `http://localhost:8080` ou o endereço do servidor na sua rede
 
-O usuário vai no formato `usuario@conexao` — por exemplo, `administrador@escritorio`.
+O usuário vai no formato `usuario@conexao` — por exemplo, `usuario.mcp@escritorio`.
+
+> ⚠️ **Não use o usuário Administrador** na conexão do MCP. Por normativa de segurança,
+> crie no Questor um usuário próprio para o MCP, só com as permissões de que ele precisa.
 
 ---
 
@@ -53,10 +58,11 @@ O usuário vai no formato `usuario@conexao` — por exemplo, `administrador@escr
 2. Dê dois cliques em **`instalar.bat`** e responda o que ele perguntar: endereço,
    usuário e senha.
 3. **Feche o Claude por completo** — inclusive o ícone ao lado do relógio do Windows — e
-   abra de novo.
+   abra de novo. No Codex, feche e abra o Codex.
 
 O instalador confere o Python, instala o que precisa, **testa a conexão com o Questor**
-antes de terminar e registra o MCP no Claude Desktop e no Claude Code.
+antes de terminar e registra o MCP em tudo o que encontrar na máquina: Claude Desktop,
+Claude Code e OpenAI Codex. No Codex, confira com `codex mcp list`.
 
 Para conferir, abra uma conversa nova e pergunte: *"qual a versão do Questor?"*
 
@@ -73,7 +79,8 @@ Quando sair uma versão nova, o MCP **avisa** numa das respostas do Claude:
 > ferramenta `gc_atualizar`.
 
 Para atualizar, é só pedir: *"atualiza o MCP do Gestão Contábil"*. O Claude mostra antes
-o que vai mudar e só aplica depois que você confirmar. Em seguida, feche e abra o Claude.
+o que vai mudar e só aplica depois que você confirmar. Em seguida, feche e abra o Claude
+(ou o Codex).
 
 - **Seus dados de acesso não são tocados** — endereço, usuário e senha continuam como estão.
 - **A versão anterior fica guardada** numa pasta de backup ao lado da instalação.
@@ -110,8 +117,14 @@ Os pontos principais para quem usa o MCP:
 - **A ferramenta de IA é sua**, contratada e operada por você. O que o Claude lê do Questor
   é enviado a ele para que possa responder, e o tratamento dessas informações segue as
   condições do fornecedor da ferramenta.
-- **Quando o próprio Questor exige confirmação** numa rotina, o Claude mostra a pergunta a
-  você antes de responder.
+- **Nada é gravado sem a sua aprovação.** Executar rotinas e importar dados — as operações
+  que alteram o Questor — exigem duas chamadas: a primeira só mostra o que seria feito, e a
+  execução acontece depois que você aprovar. A trava fica no próprio MCP, e vale igual no
+  Claude e no Codex.
+- **Quando o próprio Questor exige confirmação** numa rotina, a pergunta é mostrada a você
+  antes de responder.
+- **A senha não vai na URL.** O login envia usuário e senha no corpo da requisição, para que
+  não fiquem gravados em logs de servidor ou de proxy.
 
 ---
 
@@ -120,6 +133,10 @@ Os pontos principais para quem usa o MCP:
 **O Claude não mostra as ferramentas do Questor**
 Feche o Claude por completo, incluindo o ícone ao lado do relógio, e abra de novo. Se
 continuar, rode o `instalar.bat` outra vez.
+
+**O Codex não mostra as ferramentas do Questor**
+Rode `codex mcp list` num terminal. Se `gestao-contabil` não aparecer, o Codex foi
+instalado depois do MCP: rode o `instalar.bat` de novo, e ele faz o registro.
 
 **"Python não encontrado" ao instalar**
 Instale o Python marcando **"Add Python to PATH"**, feche a janela e rode o

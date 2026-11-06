@@ -24,7 +24,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
-__version__ = "0.3.2-beta"
+__version__ = "0.4.0-beta"
 
 import asyncio
 
@@ -98,6 +98,8 @@ Login é AUTOMÁTICO — nunca chame gc_login manualmente. O cliente gerencia to
 - Valores válidos de cada campo estão em "valores_aceitos" do gc_inspecionar
 - Para relatórios PDF: base64=True (padrão), tipo_retorno="nrwexPDF"
 - O resultado PDF/NHZ vem em base64 no campo "Data"
+- gc_processo_executar e gc_integracao_importar alteram dados: a primeira chamada devolve
+  só uma prévia. Mostre a prévia ao usuário e só repita com confirmar=true se ele aprovar
 """,
 )
 
@@ -117,6 +119,26 @@ def _get_download_dir() -> Path:
     folder = Path(raw) if raw else Path.home() / "Downloads" / "gestao-contabil"
     folder.mkdir(parents=True, exist_ok=True)
     return folder
+
+
+def _previa(tool: str, acao: str, detalhes: dict) -> dict:
+    """
+    Resposta das tools que alteram dados quando chamadas sem confirmar=true.
+
+    A trava fica no servidor, e não só na instrução ao modelo, porque cada
+    cliente MCP (Claude, Codex…) trata confirmação de um jeito: assim nenhum
+    deles grava no Questor sem uma segunda chamada explícita.
+    """
+    return {
+        "previa": True,
+        "nada_foi_executado": True,
+        "acao": acao,
+        "detalhes": detalhes,
+        "como_executar": (
+            f"Mostre esta prévia ao usuário. Só depois de ele aprovar, repita "
+            f"{tool} com os mesmos parâmetros e confirmar=true."
+        ),
+    }
 
 
 def _parse_json(value: str | dict | list | None, context: str) -> Any:
@@ -287,11 +309,11 @@ async def gc_conexao_importar_ini(
     Lê um arquivo Questor.Conexao.ini e registra todas as conexões encontradas.
 
     Cada seção do INI vira uma conexão nomeada. O logon_name é montado como
-    usuario@{nome_da_seção} (ex: "administrador@2332795 antares").
+    usuario@{nome_da_seção} (ex: "usuario.mcp@2332795 antares").
 
     caminho_ini: caminho completo do arquivo Questor.Conexao.ini
     base_url:    URL do servidor nHttp (padrão: usa a mesma da conexão default)
-    usuario:     parte do usuário no logon (padrão: extrai da conexão default, ex: "administrador")
+    usuario:     parte do usuário no logon (padrão: extrai da conexão default, ex: "usuario.mcp")
     password:    senha (padrão: usa a mesma da conexão default)
     registrar:   True = registra as conexões imediatamente (padrão True).
                  False = apenas lista o que seria registrado (dry-run).
@@ -695,12 +717,16 @@ async def gc_processo_executar(
     action_name: str,
     parametros_json: Optional[str | dict] = None,
     conexao: str = "default",
+    confirmar: bool = False,
 ) -> dict:
     """
     Executa uma rotina (processo) do Questor Gestão Contábil.
 
     action_name:     nome interno (gc_menus tipo=3).
     parametros_json: objeto JSON com os parâmetros (gc_inspecionar para ver quais).
+    confirmar:       rotinas podem gravar ou apagar dados. Sem confirmar=true a
+                     chamada só devolve uma prévia do que seria executado — mostre-a
+                     ao usuário e só repita com confirmar=true depois que ele aprovar.
 
     Confirmação: quando o servidor retorna um dialog de confirmação, a resposta
     inclui "confirmacao_pendente" com as instruções. Para responder, reenvie
@@ -721,6 +747,14 @@ async def gc_processo_executar(
                 "ausentes": ausentes,
                 "dica": f"Consulte gc_inspecionar('{action_name}') para ver todos os parâmetros.",
             }
+        # A resposta a um dialog (com "dialogs") já é a decisão do usuário;
+        # a trava vale para a chamada inicial.
+        if not confirmar:
+            return _previa(
+                "gc_processo_executar",
+                f"Executar a rotina '{action_name}' na conexão '{conexao}'.",
+                {"action_name": action_name, "parametros": body},
+            )
 
     result = await get_client(conexao).post(
         "/api/TnWebDMProcesso/ProcessoExecutar",
@@ -984,9 +1018,14 @@ async def gc_integracao_importar(
     pode_alterar_dados: bool = False,
     executar_validacao_final: bool = True,
     conexao: str = "default",
+    confirmar: bool = False,
 ) -> dict:
     """
     Importa dados via integração NLI.
+
+    confirmar: a importação grava dados no Questor. Sem confirmar=true a chamada
+               só devolve uma prévia — mostre-a ao usuário e só repita com
+               confirmar=true depois que ele aprovar.
 
     leiautes_json:            lista de layouts NLI já encodados:
                               '[{"Nome": "Socios.nli", "Arquivo": "<base64_do_nli>"}]'
@@ -1004,8 +1043,21 @@ async def gc_integracao_importar(
         with open(arquivo_dados, "rb") as f:
             dados_base64 = _base64.b64encode(f.read()).decode("ascii")
 
-    client = get_client(conexao)
     leiautes = _parse_json(leiautes_json, "leiautes_json")
+    if not confirmar:
+        nomes = [l.get("Nome", "?") for l in leiautes] if isinstance(leiautes, list) else leiautes
+        return _previa(
+            "gc_integracao_importar",
+            f"Importar dados na conexão '{conexao}' "
+            f"({'atualizando registros existentes' if pode_alterar_dados else 'só registros novos'}).",
+            {
+                "leiautes": nomes,
+                "tamanho_dados_bytes": len(_base64.b64decode(dados_base64)),
+                "pode_alterar_dados": pode_alterar_dados,
+                "executar_validacao_final": executar_validacao_final,
+            },
+        )
+    client = get_client(conexao)
     body = {
         "Leiautes": leiautes,
         "Dados": dados_base64,

@@ -78,7 +78,7 @@ O `client.py` implementa o padrão da **Cloud API** (validado com Postman). O nH
 ```
 # Conexão padrão (obrigatória)
 GC_BASE_URL=http://localhost:8080
-GC_LOGON_NAME=administrador@questor   # formato: usuario@conexao
+GC_LOGON_NAME=usuario.mcp@questor    # formato: usuario@conexao — nunca o Administrador
 GC_PASSWORD=masterkey
 
 # Habilitar múltiplas conexões (padrão false)
@@ -99,7 +99,9 @@ GC_ALLOW_MULTI_CONN=false
 
 ### Autenticação
 
-1. `POST /home/LoginModulo?LogonName=usuario@conexao&PlainPassword=senha` → retorna `{"Token": "..."}` + seta cookie `QuestorCloud`
+1. `POST /home/LoginModulo` com corpo form (`LogonName=usuario@conexao&PlainPassword=senha`) → retorna `{"Token": "..."}` + seta cookie `QuestorCloud`.
+   ⚠️ **Nunca mandar as credenciais na query string** (era assim até a 0.3.x): a URL fica nos logs do
+   proxy e do servidor. O endpoint aceita o mesmo par no corpo form-urlencoded; corpo JSON **não** funciona.
 2. Todas as requests subsequentes precisam de **dois** elementos:
    - `?token=<token>` na query string
    - Header `Cookie: QuestorCloud=<valor>` (extraído da resposta do login)

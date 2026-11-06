@@ -2,7 +2,7 @@
 
 Servidor MCP (Model Context Protocol) para integrar o Claude com o **Questor Gestao Contabil** via API Cloud (nHttp).
 
-Permite consultar dados, executar processos, gerar relatorios e importar/exportar dados diretamente pelo Claude Desktop ou Claude Code.
+Permite consultar dados, executar processos, gerar relatorios e importar/exportar dados diretamente pelo Claude Desktop, Claude Code ou OpenAI Codex. O servidor e o mesmo nos tres.
 
 ---
 
@@ -10,7 +10,7 @@ Permite consultar dados, executar processos, gerar relatorios e importar/exporta
 
 - **Python 3.10+**
 - **Questor Gestao Contabil** com acesso nHttp habilitado (Cloud ou local)
-- **Claude Desktop** ou **Claude Code**
+- **Claude Desktop**, **Claude Code** ou **OpenAI Codex**
 
 ---
 
@@ -29,8 +29,9 @@ O instalador faz tudo sozinho:
 - instala as dependencias (`pip install -e .`);
 - pergunta URL, usuario e senha e grava o `.env`;
 - **testa a conexao com o Questor** antes de terminar;
-- registra o servidor no Claude Desktop e no Claude Code, em todos os
-  caminhos de configuracao encontrados na maquina.
+- registra o servidor no Claude Desktop, no Claude Code e no OpenAI Codex, em
+  todos os caminhos de configuracao encontrados na maquina;
+- deixa o `.env` legivel so pelo seu usuario do Windows (a senha fica nele).
 
 Rodar de novo e seguro: ele mostra os valores atuais entre colchetes (Enter
 mantem) e nao remove os outros MCPs ja configurados.
@@ -49,9 +50,12 @@ python setup_config.py    # interativo: pede URL, usuario e senha
 O `setup_config.py` cria o arquivo `.env` com:
 ```
 GC_BASE_URL=https://gc-xxx.questor.com.br   # ou http://localhost:8080
-GC_LOGON_NAME=administrador@conexao          # formato: usuario@conexao
+GC_LOGON_NAME=usuario.mcp@conexao           # formato: usuario@conexao
 GC_PASSWORD=senha
 ```
+
+> **Nao use o usuario Administrador** na conexao do MCP: por normativa de seguranca,
+> crie um usuario proprio para o MCP, so com as permissoes de que ele precisa.
 
 > O `setup_config.py` **so grava o `.env`**. Instalar dependencias e registrar
 > no Claude ficam por sua conta - veja a secao 3.
@@ -90,6 +94,34 @@ Onde fica o arquivo:
 
 Reinicie o Claude Desktop. O servidor MCP sera iniciado automaticamente.
 
+### OpenAI Codex
+
+O `instalar.bat` ja registra no Codex quando encontra `%USERPROFILE%\.codex` ou o
+comando `codex`. Se o Codex foi instalado depois do MCP, rode o `instalar.bat` de novo.
+
+Para registrar a mao, pelo terminal:
+
+```bash
+codex mcp add gestao-contabil -- "C:/caminho/para/python.exe" "C:/caminho/para/gestao-contabil-mcp/server.py"
+codex mcp list
+```
+
+Ou direto no `%USERPROFILE%\.codex\config.toml` (e o que o instalador grava):
+
+```toml
+[mcp_servers.gestao-contabil]
+command = 'C:\caminho\para\python.exe'
+args = ['C:\caminho\para\gestao-contabil-mcp\server.py']
+startup_timeout_sec = 30
+tool_timeout_sec = 180
+```
+
+> Os timeouts importam: o padrao do Codex e 10 s para subir e 60 s por chamada, e um
+> relatorio pesado no Questor pode levar mais que isso.
+>
+> O servidor encontra o `.env` pela pasta do `server.py`, entao nao depende da pasta em
+> que o Codex foi aberto.
+
 ---
 
 ## 4. Tools Disponiveis
@@ -118,15 +150,19 @@ Reinicie o Claude Desktop. O servidor MCP sera iniciado automaticamente.
 | Tool | Descricao |
 |------|-----------|
 | `gc_consultar` | Consulta dados de telas/cadastros |
-| `gc_processo_executar` | Executa processos e rotinas |
+| `gc_processo_executar` | Executa processos e rotinas *(pede confirmacao)* |
 | `gc_relatorio_executar` | Gera relatorios (PDF, HTML, RTF, CSV) |
 
 ### Integracao NLI
 | Tool | Descricao |
 |------|-----------|
 | `gc_nli_construir` | Monta arquivo NLI (layout de integracao) |
-| `gc_integracao_importar` | Importa dados via NLI |
+| `gc_integracao_importar` | Importa dados via NLI *(pede confirmacao)* |
 | `gc_integracao_exportar` | Exporta dados via NLI |
+
+> **Confirmacao:** `gc_processo_executar` e `gc_integracao_importar` alteram dados no
+> Questor. Chamadas sem `confirmar=true` so devolvem uma previa (`"previa": true`) e nao
+> executam nada. A trava e do servidor, entao vale igual em qualquer cliente MCP.
 
 ---
 

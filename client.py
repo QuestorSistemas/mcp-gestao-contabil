@@ -141,9 +141,11 @@ class GestaoContabilClient:
     async def _login(self) -> str:
         self._checar_breaker()
         try:
+            # Credenciais no CORPO (form), nunca na query string: a URL fica
+            # gravada nos logs de proxy e de servidor, e a senha iria junto.
             resp = await self._client().post(
                 f"{self.base_url}/home/LoginModulo",
-                params={"LogonName": self.logon_name, "PlainPassword": self.password},
+                data={"LogonName": self.logon_name, "PlainPassword": self.password},
                 timeout=30,
             )
         except httpx.TimeoutException:

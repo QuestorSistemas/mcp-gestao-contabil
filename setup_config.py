@@ -52,7 +52,7 @@ def main():
     prompt_logon = (
         f"Usuário de login [{current_logon}]: "
         if current_logon
-        else "Usuário de login no formato usuario@conexao (ex: administrador@questor): "
+        else "Usuário de login no formato usuario@conexao (ex: usuario.mcp@questor; nao use o Administrador): "
     )
     logon = input(prompt_logon).strip()
     if not logon and current_logon:
@@ -94,7 +94,7 @@ def main():
 # URL base do servidor nHttp (rodando localmente ou na rede)
 GC_BASE_URL={url}
 
-# Credenciais de login: usuario@conexao (ex: administrador@questor)
+# Credenciais de login: usuario@conexao (ex: usuario.mcp@questor; nao use o Administrador)
 GC_LOGON_NAME={logon}
 GC_PASSWORD={password}
 
