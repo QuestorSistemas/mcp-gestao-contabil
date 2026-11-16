@@ -236,18 +236,20 @@ def caminhos_config_claude() -> list[tuple[Path, str]]:
 
     encontrados: list[tuple[Path, str]] = []
 
-    code_settings = home / ".claude" / "settings.json"
-    if code_settings.exists():
-        encontrados.append((code_settings, "Claude Code (settings.json)"))
-
+    # Claude Code: os MCPs ficam no ~/.claude.json. O ~/.claude/settings.json NÃO
+    # é lido para MCPs — e pode estar protegido contra gravação (configuração
+    # gerenciada), então não é tocado. Quando o comando `claude` existe, o
+    # registro vai por ele (registrar_no_claude_code) e este arquivo é pulado.
     claude_json = home / ".claude.json"
-    if claude_json.exists():
+    if claude_json.exists() and not shutil.which("claude"):
         encontrados.append((claude_json, "Claude Code (.claude.json)"))
 
     # Para o Desktop basta a PASTA existir: quem nunca configurou um MCP ainda
     # nao tem o claude_desktop_config.json, e nesse caso nos criamos o arquivo.
+    # Quem instalou e ainda nao abriu o Desktop nao tem nem a pasta: a pasta do
+    # programa (%LOCALAPPDATA%\AnthropicClaude) tambem conta.
     desktop_dir = appdata / "Claude"
-    if desktop_dir.is_dir():
+    if desktop_dir.is_dir() or (local_appdata / "AnthropicClaude").is_dir():
         encontrados.append((desktop_dir / "claude_desktop_config.json", "Claude Desktop"))
 
     pacotes = local_appdata / "Packages"
@@ -265,17 +267,44 @@ def caminhos_config_claude() -> list[tuple[Path, str]]:
     return encontrados
 
 
-def registrar_no_claude() -> int:
+def comando_claude_code() -> list[str]:
+    return ["claude", "mcp", "add", "-s", "user", MCP_NAME, "--", sys.executable, str(SERVER_PY)]
+
+
+def registrar_no_claude_code() -> bool:
+    """
+    Registra pelo próprio CLI do Claude Code, quando ele existe. É o caminho
+    oficial e não disputa o ~/.claude.json com um Claude Code aberto.
+    """
+    exe = shutil.which("claude")
+    if not exe:
+        return False
+    try:
+        # Remove o registro anterior (se houver) para o add não falhar por duplicado.
+        subprocess.run([exe, "mcp", "remove", "-s", "user", MCP_NAME], capture_output=True, text=True, timeout=60)
+        r = subprocess.run([exe, *comando_claude_code()[1:]], capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        print(f"  [Claude Code] Aviso: nao deu para registrar ({e}).")
+        print("  Rode num terminal: " + " ".join(f'"{p}"' if " " in p else p for p in comando_claude_code()))
+        return False
+    if r.returncode != 0:
+        print(f"  [Claude Code] Aviso: o registro falhou ({(r.stderr or r.stdout).strip()}).")
+        print("  Rode num terminal: " + " ".join(f'"{p}"' if " " in p else p for p in comando_claude_code()))
+        return False
+    print("  [Claude Code] registrado (claude mcp add -s user)")
+    return True
+
+
+def registrar_no_claude() -> list[str]:
+    """Registra em cada Claude encontrado. Devolve os rótulos onde deu certo."""
     entrada = {"command": sys.executable, "args": [str(SERVER_PY)]}
 
+    registrados = ["Claude Code"] if registrar_no_claude_code() else []
     destinos = caminhos_config_claude()
-    if not destinos:
-        print("  Nenhuma instalacao do Claude encontrada nesta maquina.")
-        print("  Registre manualmente, em claude_desktop_config.json:")
-        print(json.dumps({"mcpServers": {MCP_NAME: entrada}}, indent=2))
-        return 0
+    if not destinos and not registrados:
+        print("  Claude nao encontrado nesta maquina — pulando.")
+        return []
 
-    registrados = 0
     for caminho, rotulo in destinos:
         config = ler_json(caminho)
         if config is None:
@@ -286,9 +315,14 @@ def registrar_no_claude() -> int:
         servidores = config.setdefault("mcpServers", {})
         acao = "atualizado" if MCP_NAME in servidores else "adicionado"
         servidores[MCP_NAME] = entrada
-        escrever_json(caminho, config)
+        # Um destino protegido contra gravação não pode derrubar os outros.
+        try:
+            escrever_json(caminho, config)
+        except OSError as e:
+            print(f"  [{rotulo}] Aviso: sem permissao para gravar em {caminho} ({e.strerror}) — pulando.")
+            continue
         print(f"  [{rotulo}] {acao} em {caminho}")
-        registrados += 1
+        registrados.append(rotulo)
 
     return registrados
 
@@ -352,8 +386,12 @@ def registrar_no_codex() -> bool:
         if resto:
             novo += "\n" + resto + "\n"
 
-    caminho.parent.mkdir(parents=True, exist_ok=True)
-    caminho.write_text(novo, encoding="utf-8")
+    try:
+        caminho.parent.mkdir(parents=True, exist_ok=True)
+        caminho.write_text(novo, encoding="utf-8")
+    except OSError as e:
+        print(f"  [Codex] Aviso: sem permissao para gravar em {caminho} ({e.strerror}) — pulando.")
+        return False
     print(f"  [Codex] {acao} em {caminho}")
     return True
 
@@ -383,15 +421,27 @@ def main() -> int:
     registrados = registrar_no_claude()
     no_codex = registrar_no_codex()
 
-    titulo("Instalacao concluida")
-
-    if registrados or no_codex:
+    if not registrados and not no_codex:
+        titulo("MCP instalado, mas nao registrado em nenhuma IA")
+        print("Nao encontramos o Claude nem o OpenAI Codex nesta maquina.")
+        print("Instale um deles, abra-o uma vez e rode este instalador de novo.")
+        print()
+        print("Ou registre a mao:")
+        print("  Claude Desktop — em %APPDATA%\\Claude\\claude_desktop_config.json:")
+        entrada = {"command": sys.executable, "args": [str(SERVER_PY)]}
+        print(json.dumps({"mcpServers": {MCP_NAME: entrada}}, indent=2))
+        print("  Claude Code: " + " ".join(f'"{p}"' if " " in p else p for p in comando_claude_code()))
+        print(f'  Codex: codex mcp add {MCP_NAME} -- "{sys.executable}" "{SERVER_PY}"')
+    else:
+        titulo("Instalacao concluida")
         print("Proximos passos:")
-        if registrados:
-            print("  Claude: feche o Claude Desktop POR COMPLETO — inclusive o icone")
-            print("          na bandeja do sistema, ao lado do relogio — e abra de novo.")
+        if any(r.startswith("Claude Desktop") for r in registrados):
+            print("  Claude Desktop: feche POR COMPLETO — inclusive o icone na bandeja")
+            print("                  do sistema, ao lado do relogio — e abra de novo.")
+        if any(r.startswith("Claude Code") for r in registrados):
+            print("  Claude Code:    abra uma sessao nova e confira com /mcp")
         if no_codex:
-            print("  Codex:  feche e abra o Codex. Confira com: codex mcp list")
+            print("  Codex:          feche e abra o Codex. Confira com: codex mcp list")
         print('  Depois, numa conversa nova, peca: "qual a versao do Questor?"')
         print()
         print("Se responder com a versao, esta funcionando.")

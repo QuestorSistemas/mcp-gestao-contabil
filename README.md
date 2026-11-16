@@ -4,7 +4,7 @@ Conecta o **Claude** ou o **OpenAI Codex** ao **Questor Gestão Contábil**: voc
 português e a IA consulta cadastros, gera relatórios, executa rotinas e importa ou exporta dados direto
 no seu sistema.
 
-> Versão atual: **0.4.0-beta** · Para Windows, com Claude Desktop, Claude Code ou OpenAI Codex
+> Versão atual: **0.4.1-beta** · Para Windows, com Claude Desktop, Claude Code ou OpenAI Codex
 
 ---
 

@@ -90,7 +90,7 @@ Onde fica o arquivo:
 |------------|---------|
 | Claude Desktop (instalador tradicional) | `%APPDATA%\Claude\claude_desktop_config.json` |
 | Claude Desktop (Microsoft Store) | `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\claude_desktop_config.json` |
-| Claude Code | `~/.claude/settings.json` |
+| Claude Code | `claude mcp add -s user gestao-contabil -- <python.exe> <server.py>` (grava em `~/.claude.json`; o `settings.json` nao e lido para MCPs) |
 
 Reinicie o Claude Desktop. O servidor MCP sera iniciado automaticamente.
 
