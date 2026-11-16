@@ -24,7 +24,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
-__version__ = "0.4.1-beta"
+__version__ = "0.4.2-beta"
 
 import asyncio
 

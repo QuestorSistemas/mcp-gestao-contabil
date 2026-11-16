@@ -11,6 +11,7 @@ O token obtido no login é renovado automaticamente em caso de 401.
 
 import asyncio
 import json
+import logging
 import os
 import time
 from pathlib import Path
@@ -20,6 +21,12 @@ import httpx
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent / ".env")
+
+# O httpx registra em INFO a URL completa de cada requisição — e a URL leva o
+# token da sessão (?token=). O cliente MCP grava esse log em disco (o Claude
+# Desktop, em %APPDATA%\Claude\logs). Só avisos e erros passam.
+for _nome in ("httpx", "httpcore"):
+    logging.getLogger(_nome).setLevel(logging.WARNING)
 
 # Indica se conexões além da "default" são permitidas.
 # Controlado por GC_ALLOW_MULTI_CONN=true no .env ou via allow_multi_connection().
@@ -161,7 +168,16 @@ class GestaoContabilClient:
                 f"Login recusado pelo Questor ({resp.status_code}). Verifique "
                 f"GC_LOGON_NAME (formato usuario@conexao) e GC_PASSWORD no .env."
             )
-        resp.raise_for_status()
+        if not resp.is_success:
+            # Sem a mensagem padrão do httpx, que repete a URL da requisição; o
+            # motivo que o Questor devolve em "Erro" segue junto.
+            try:
+                motivo = (resp.json() or {}).get("Erro", "")
+            except (json.JSONDecodeError, AttributeError):
+                motivo = ""
+            raise RuntimeError(
+                f"Falha no login do Questor (HTTP {resp.status_code})" + (f": {motivo}" if motivo else ".")
+            )
 
         # Armazena cookie de sessão (QuestorCloud) para enviar em todas as requests
         self._session_cookie = resp.cookies.get("QuestorCloud")
@@ -172,7 +188,8 @@ class GestaoContabilClient:
                 or data.get("BearerToken") or data.get("bearerToken")
             )
             if not token:
-                raise RuntimeError(f"Token não encontrado na resposta: {data}")
+                # Só os nomes dos campos: a resposta do login pode trazer dados de sessão.
+                raise RuntimeError(f"O Questor não retornou um token de sessão (campos: {sorted(data)}).")
             return token
         except (json.JSONDecodeError, AttributeError):
             token = resp.text.strip().strip('"')
